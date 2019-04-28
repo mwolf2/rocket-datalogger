@@ -14,7 +14,7 @@ directories, handle files, etc.
 """
 import os
 #datetime necessary to put file timestamps in human-readable format
-from datetime import datetime
+import datetime
 #re necessary to get search for text and use it
 import re
 #BMP180 library
@@ -36,7 +36,12 @@ i2c = smbus.SMBus(1)
 
 #I2C Addresses
 #Barometer
-bmp = BMP085(0x77)
+bmp = BMP085(0x77, 1)
+temp = bmp.readTemperature()
+pressure = bmp.readPressure()
+asl = bmp.readAltitude() #0m pressure changeable via telemetry later
+#AGL
+agl = asl #CHANGE THIS
 #IMU
 #This code snippet from Akimach on Github:
 path = "../lib/liblsm9ds1cwrapper.so"
@@ -136,7 +141,27 @@ if __name__ == "__main__":
         cmy = lib.lsm9ds1_calcMag(imu, my)
         cmz = lib.lsm9ds1_calcMag(imu, mz)
 #End Akimach's code
-
+#Tell console I2C device list is about to be printed
+print("I2C Device List:")
+#Open terminal, run i2cdetect
+geti2c = subprocess.Popen(['i2cdetect', '-y', '1'], stdout=subprocess.PIPE)
+#For every match for number, number: anything, number, number found, print it
+"""
+Add feature that lets RPi check that Lora, baro, and IMU are at certain
+addresses
+"""
+for i in range (0,9):
+    line = str(p.stdout.readline())
+    
+    for match in re.finditer("[0-9][0-9]:.*[0-9][0-9]", line):
+        #match.group() is all i2c devices from i2cdetect
+        i2cDev = match.group()
+        #Parse i2cDev so that we get rid of dashes and spaces
+        i2cDevParsed = i2cDev.replace("-", "").replace(" ", "") #Bad syntax
+        #Print out the result
+        print (i2cDevParsed, "\n")
+        
+        
 #Set up LoraWAN board through I2C
 loraAddress = 0x04
 
@@ -145,11 +170,11 @@ def sendByte(x):
     return -1
 
 def recByte():
-    inByte = i2c.read_byte(address)
+    inByte = i2c.read_byte(loraAddress)
     return inByte
 
 sendByte(0)
-print ('Sent Lora board 0')
+print ('Sent Lora board "0"')
 
 loraOpenByte = recByte()
 print ('Received ', loraOpenByte, ' from Lora board.\n')
@@ -171,6 +196,16 @@ print("GPIO mode set to BOARD") #Print GPIO mode to command line
 
 GPIO.setup(ledPin, GPIO.OUT) #LED pin set to output
 GPIO.setup(piezoPin, GPIO.OUT) #Piezo pin set to output
+
+#Set up CSV
+dataCSV = "flightdata.csv" #Set up CSV for datalogging
+csv = open(dataCSV, "w") #Tell Pi we are writing to file
+columnTitleRow = "Time, Xa, Ya, Za, Xo, Yo, Zo, Pressure, ASL, AGL, Temp\n"
+csv.write(columnTitleRow)
+
+#Setup is finished! On to the datalogging and telemetry
+
+#Datalogging & Telemetry~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 
