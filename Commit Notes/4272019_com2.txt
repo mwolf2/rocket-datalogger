@@ -1,0 +1,3 @@
+Next Github Commit:
+	-Removed temp sensor, using one on BMP180
+	-LSM9DS1 usage dependent on Akimach's LSM9DS1 library
