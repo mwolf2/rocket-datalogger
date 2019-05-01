@@ -1,0 +1,24 @@
+{
+    "Header": {
+        "Comment": "All values are metric (mm)",
+        "CreationDate": "2019-05-01T02:57:53Z",
+        "GenerationSoftware": {
+            "Application": "EAGLE",
+            "Vendor": "Autodesk",
+            "Version": "9.2.2"
+        },
+        "Part": "Single"
+    },
+    "Overall": {
+        "BoardThickness": 1.57,
+        "LayerNumber": 2,
+        "Name": {
+            "ProjectId": "RasPi-BplusHAT"
+        },
+        "Owner": "Mwolf2 Mwolf2 <mwolf2@cognify.com>",
+        "Size": {
+            "X": 65,
+            "Y": 56
+        }
+    }
+}
