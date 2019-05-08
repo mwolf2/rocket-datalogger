@@ -14,13 +14,16 @@ directories, handle files, etc.
 """
 import os
 #datetime necessary to put file timestamps in human-readable format
-import datetime
+#Can't use datetime.now() with import datetime. Platform-specific?
+from datetime import datetime
 #re necessary to get search for text and use it
 import re
 #BMP180 library
 from Adafruit_BMP085 import BMP085
 #ctypes for LSM9DS1 library
 from ctypes import *
+#csv necessary to create csv files
+import csv
 
 
 #SETUP~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -198,15 +201,42 @@ GPIO.setup(ledPin, GPIO.OUT) #LED pin set to output
 GPIO.setup(piezoPin, GPIO.OUT) #Piezo pin set to output
 
 #Set up CSV
-dataCSV = "flightdata.csv" #Set up CSV for datalogging
-csv = open(dataCSV, "w") #Tell Pi we are writing to file
-columnTitleRow = "Time, Xa, Ya, Za, Xo, Yo, Zo, Pressure, ASL, AGL, Temp\n"
-csv.write(columnTitleRow)
+timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M')
+filetime = timestamp.replace("'", "")
+dataCSV = "flightdata " + filetime + ".csv" #Set up CSV name for datalogging
+
+titleRow = ['Time', 'Xa', 'Ya', 'Za', 'Xo', 'Yo', 'Zo', 'Mx', 'My', 'Mz' 'Pressure', 'ASL', 
+            'AGL', 'Temp']
+
+with open(dataCSV, 'w'):
+    writer = csv.writer(dataCSV)
+    writer.writerow(titleRow)
+    
+dataCSV.close()
 
 #Setup is finished! On to the datalogging and telemetry
 
 #Datalogging & Telemetry~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+print("Beginning logging and telemetry transmission.")
 
+"""
+Commented out b/c not able to test yet
+landed = 0 #Rocket landed
+flightComplete = 0 #Flight complete, datalogging can stop
+
+calibration = open('calibration' + datetime.now().strftime('%Y-%m-%d-%H-%M'), 'w')
+calibration.write(asl + "\n")
+calibration.write()
+
+while (flightComplete == 0):
+    
+    ltime = datetime.now().strftime('%H-%M')
+    dataRow = [ltime, cax, cay, caz, cgx, cgy, cgz, cmx, cmy, cmz, ]
+    
+    with open(dataCSV, 'a'):
+        writer = csv.writer(dataCSV)
+        writer.write
+"""
 
 
 
