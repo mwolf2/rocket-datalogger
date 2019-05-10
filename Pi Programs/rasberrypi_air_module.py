@@ -40,11 +40,7 @@ i2c = smbus.SMBus(1)
 #I2C Addresses
 #Barometer
 bmp = BMP085.BMP085()
-temp = bmp.read_temperature()
-pressure = bmp.read_pressure()
-asl = bmp.read_altitude() #0m pressure changeable via telemetry later
-#AGL
-agl = asl #CHANGE THIS
+
 #IMU
 #This code snippet from Akimach on Github:
 path = "../lib/liblsm9ds1cwrapper.so"
@@ -109,142 +105,143 @@ if __name__ == "__main__":
         quit()
     lib.lsm9ds1_calibrate(imu)
     
-while lib.lsm9ds1_gyroAvailable(imu) == 0:
-    pass
-lib.lsm9ds1_readGyro(imu)
-while lib.lsm9ds1_accelAvailable(imu) == 0:
-    pass
-lib.lsm9ds1_readAccel(imu)
-while lib.lsm9ds1_magAvailable(imu) == 0:
-    pass
-lib.lsm9ds1_readMag(imu)
-gx = lib.lsm9ds1_getGyroX(imu)
-gy = lib.lsm9ds1_getGyroY(imu)
-gz = lib.lsm9ds1_getGyroZ(imu)
-
-ax = lib.lsm9ds1_getAccelX(imu)
-ay = lib.lsm9ds1_getAccelY(imu)
-az = lib.lsm9ds1_getAccelZ(imu)
-
-mx = lib.lsm9ds1_getMagX(imu)
-my = lib.lsm9ds1_getMagY(imu)
-mz = lib.lsm9ds1_getMagZ(imu)
-
-cgx = lib.lsm9ds1_calcGyro(imu, gx)
-cgy = lib.lsm9ds1_calcGyro(imu, gy)
-cgz = lib.lsm9ds1_calcGyro(imu, gz)
-
-cax = lib.lsm9ds1_calcAccel(imu, ax)
-cay = lib.lsm9ds1_calcAccel(imu, ay)
-caz = lib.lsm9ds1_calcAccel(imu, az)
-
-cmx = lib.lsm9ds1_calcMag(imu, mx)
-cmy = lib.lsm9ds1_calcMag(imu, my)
-cmz = lib.lsm9ds1_calcMag(imu, mz)
+    #Tell console I2C device list is about to be printed
+    print("I2C Device List:")
+    #Open terminal, run i2cdetect
+    geti2c = subprocess.Popen(['i2cdetect', '-y', '1'], stdout=subprocess.PIPE)
+    #For every match for number, number: anything, number, number found, print it
+    """
+    Add feature that lets RPi check that Lora, baro, and IMU are at certain
+    addresses
+    """
+    for i in range (0,9):
+        line = str(geti2c.stdout.readline())
         
-print("Gyro: %f, %f, %f [deg/s]" % (cgx, cgy, cgz))
-print("Accel: %f, %f, %f [Gs]" % (cax, cay, caz))
-print("Mag: %f, %f, %f [gauss]" % (cmx, cmy, cmz))
-print('Temp = {0:0.2f} *C'.format(bmp.read_temperature()))
-print('Pressure = {0:0.2f} Pa'.format(bmp.read_pressure()))
-print('Altitude = {0:0.2f} m'.format(bmp.read_altitude()))
-
+        for match in re.finditer("[0-9][0-9]:.*[0-9][0-9]", line):
+            #match.group() is all i2c devices from i2cdetect
+            i2cDev = match.group()
+            #Parse i2cDev so that we get rid of dashes and spaces
+            i2cDevParsed = i2cDev.replace("-", "").replace(" ", "") #Bad syntax
+            #Print out the result
+            print (i2cDevParsed)
+            
+            
+    #Set up LoraWAN board through I2C
+    loraAddress = 0x04
     
-        
-#End Akimach's code
-#Tell console I2C device list is about to be printed
-print("I2C Device List:")
-#Open terminal, run i2cdetect
-geti2c = subprocess.Popen(['i2cdetect', '-y', '1'], stdout=subprocess.PIPE)
-#For every match for number, number: anything, number, number found, print it
-"""
-Add feature that lets RPi check that Lora, baro, and IMU are at certain
-addresses
-"""
-for i in range (0,9):
-    line = str(geti2c.stdout.readline())
+    def sendByte(x):
+        i2c.write_byte(loraAddress, x)
+        return -1
     
-    for match in re.finditer("[0-9][0-9]:.*[0-9][0-9]", line):
-        #match.group() is all i2c devices from i2cdetect
-        i2cDev = match.group()
-        #Parse i2cDev so that we get rid of dashes and spaces
-        i2cDevParsed = i2cDev.replace("-", "").replace(" ", "") #Bad syntax
-        #Print out the result
-        print (i2cDevParsed)
-        
-        
-#Set up LoraWAN board through I2C
-loraAddress = 0x04
-
-def sendByte(x):
-    i2c.write_byte(loraAddress, x)
-    return -1
-
-def recByte():
-    inByte = i2c.read_byte(loraAddress)
-    return inByte
-
-#sendByte(0)
-#print ('Sent Lora board "0"')
-
-#loraOpenByte = recByte()
-#print ('Received ', loraOpenByte, ' from Lora board.\n')
-#
-#if loraOpenByte == 1:
-#    print ('Connection with Lora board established.')
-#else:
-#    print ('No connection to Lora board.')
-
-"""
-Set RPi GPIO mode - in this case, we are referring to the RPi's GPIO pins
-according to the numbering printed on the motherboard. This is because the
-datalogger doesn't use a Pi Wedge or similar device, so it's just easier
-this way.
-"""
-GPIO.setmode(GPIO.BOARD)
-
-print("GPIO mode set to BOARD") #Print GPIO mode to command line
-
-GPIO.setwarnings(False)
-print("No GPIO warnings will be printed")
-
-GPIO.setup(ledPin, GPIO.OUT) #LED pin set to output
-GPIO.setup(piezoPin, GPIO.OUT) #Piezo pin set to output
-
-#Datalogging & Telemetry~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-GPIO.cleanup()
-
-landed = 0 #Rocket landed
-flightComplete = 0 #Flight complete, datalogging can stop
-
-calibration = open('calibration' + datetime.now().strftime('%Y-%m-%d-%H-%M'), 'w')
-calibration.write(str(asl) + "\n")
-calibration.close()
-
-#Set up CSV
-timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M')
-filetime = timestamp.replace("'", "")
-dataCSV = "flightdata " + filetime + ".csv" #Set up CSV name for datalogging
-
-titleRow = ['Time', 'Xa', 'Ya', 'Za', 'Xo', 'Yo', 'Zo', 'Mx', 'My', 'Mz', 'Pressure', 'ASL', 
-            'AGL', 'Temp']
-
-with open(dataCSV, 'w') as dataCSV:
-    writer = csv.writer(dataCSV)
-    writer.writerow(titleRow)
-
-    while (flightComplete == 0):
-        ltime = datetime.now().strftime('%H:%M:%S')
-        dataRow = [ltime, cax, cay, caz, cgx, cgy, cgz, cmx, cmy, cmz ]
-        writer.writerow(dataRow)
-
-
-
-
-
-
-
-
-
-
-
+    def recByte():
+        inByte = i2c.read_byte(loraAddress)
+        return inByte
+    
+    #sendByte(0)
+    #print ('Sent Lora board "0"')
+    
+    #loraOpenByte = recByte()
+    #print ('Received ', loraOpenByte, ' from Lora board.\n')
+    #
+    #if loraOpenByte == 1:
+    #    print ('Connection with Lora board established.')
+    #else:
+    #    print ('No connection to Lora board.')
+    
+    """
+    Set RPi GPIO mode - in this case, we are referring to the RPi's GPIO pins
+    according to the numbering printed on the motherboard. This is because the
+    datalogger doesn't use a Pi Wedge or similar device, so it's just easier
+    this way.
+    """
+    GPIO.setmode(GPIO.BOARD)
+    
+    print("GPIO mode set to BOARD") #Print GPIO mode to command line
+    
+    GPIO.setwarnings(False)
+    print("No GPIO warnings will be printed")
+    
+    GPIO.setup(ledPin, GPIO.OUT) #LED pin set to output
+    GPIO.setup(piezoPin, GPIO.OUT) #Piezo pin set to output
+    
+    #Datalogging & Telemetry~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    GPIO.cleanup()
+    
+    landed = 0 #Rocket landed
+    flightComplete = 0 #Flight complete, datalogging can stop
+    
+    
+    calibration = open('calibration' + datetime.now().strftime('%Y-%m-%d-%H-%M'), 'w')
+    calibration.write(str(asl) + "\n")
+    calibration.close()
+    
+    #Set up CSV
+    timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M')
+    filetime = timestamp.replace("'", "")
+    dataCSV = "flightdata " + filetime + ".csv" #Set up CSV name for datalogging
+    
+    titleRow = ['Time', 'Xa', 'Ya', 'Za', 'Xo', 'Yo', 'Zo', 'Mx', 'My', 'Mz', 'Pressure', 'ASL', 
+                'AGL', 'Temp']
+    
+    with open(dataCSV, 'w') as dataCSV:
+        writer = csv.writer(dataCSV)
+        writer.writerow(titleRow)
+    
+        while (flightComplete == 0):
+            
+            while lib.lsm9ds1_gyroAvailable(imu) == 0:
+                pass
+            lib.lsm9ds1_readGyro(imu)
+            while lib.lsm9ds1_accelAvailable(imu) == 0:
+                pass
+            lib.lsm9ds1_readAccel(imu)
+            while lib.lsm9ds1_magAvailable(imu) == 0:
+                pass
+            lib.lsm9ds1_readMag(imu)
+    
+            gx = lib.lsm9ds1_getGyroX(imu)
+            gy = lib.lsm9ds1_getGyroY(imu)
+            gz = lib.lsm9ds1_getGyroZ(imu)
+    
+            ax = lib.lsm9ds1_getAccelX(imu)
+            ay = lib.lsm9ds1_getAccelY(imu)
+            az = lib.lsm9ds1_getAccelZ(imu)
+    
+            mx = lib.lsm9ds1_getMagX(imu)
+            my = lib.lsm9ds1_getMagY(imu)
+            mz = lib.lsm9ds1_getMagZ(imu)
+    
+            cgx = lib.lsm9ds1_calcGyro(imu, gx)
+            cgy = lib.lsm9ds1_calcGyro(imu, gy)
+            cgz = lib.lsm9ds1_calcGyro(imu, gz)
+    
+            cax = lib.lsm9ds1_calcAccel(imu, ax)
+            cay = lib.lsm9ds1_calcAccel(imu, ay)
+            caz = lib.lsm9ds1_calcAccel(imu, az)
+    
+            cmx = lib.lsm9ds1_calcMag(imu, mx)
+            cmy = lib.lsm9ds1_calcMag(imu, my)
+            cmz = lib.lsm9ds1_calcMag(imu, mz)
+    
+            temp = bmp.read_temperature()
+            pressure = bmp.read_pressure()
+            asl = bmp.read_altitude()
+            
+            ltime = datetime.now().strftime('%H:%M:%S')
+            dataRow = [ltime, cax, cay, caz, cgx, cgy, cgz, cmx, cmy, cmz, pressure, asl,' ', temp ]
+            writer.writerow(dataRow)
+            
+            time.sleep(.1)
+            
+            print('logging')
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
