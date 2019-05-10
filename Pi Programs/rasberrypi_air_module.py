@@ -167,6 +167,11 @@ if __name__ == "__main__":
     #Datalogging & Telemetry~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     GPIO.cleanup()
     
+    
+    asl = bmp.read_altitude()
+    #add AGL code here
+    
+    
     landed = 0 #Rocket landed
     flightComplete = 0 #Flight complete, datalogging can stop
     
